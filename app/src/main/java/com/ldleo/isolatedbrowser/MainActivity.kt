@@ -286,20 +286,20 @@ class MainActivity : AppCompatActivity() {
 
                 val tvName = TextView(this)
                 tvName.text = profile.name
-                tvName.textSize = 16sp
+                tvName.textSize = 16f
                 tvName.setTextColor(Color.WHITE)
                 card.addView(tvName)
 
                 val tvUrl = TextView(this)
                 tvUrl.text = profile.startUrl
-                tvUrl.textSize = 12sp
+                tvUrl.textSize = 12f
                 tvUrl.setTextColor(Color.parseColor("#8E8E93"))
                 tvUrl.setPadding(0, 4, 0, 8)
                 card.addView(tvUrl)
 
                 val tvHardware = TextView(this)
                 tvHardware.text = "GPU: ${profile.gpuRenderer} | Seed: #${profile.seed}"
-                tvHardware.textSize = 11sp
+                tvHardware.textSize = 11f
                 tvHardware.setTextColor(Color.parseColor("#34C759"))
                 card.addView(tvHardware)
 
