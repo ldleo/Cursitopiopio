@@ -1,17 +1,23 @@
 package com.ldleo.isolatedbrowser
 
 object StealthScript {
-    fun generate(seed: Int, vendor: String, renderer: String): String {
+    fun generate(seed: Int, vendor: String, renderer: String, userAgent: String): String {
         return """
         (function() {
             try {
                 const seed = $seed;
 
+                // 1. WebRTC Shield (Neutralizar fugas de IP)
+                window.RTCPeerConnection = undefined;
+                window.webkitRTCPeerConnection = undefined;
+
+                // 2. Hardware Concurrency & Memory
                 Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8, configurable: false });
                 Object.defineProperty(navigator, 'deviceMemory', { get: () => 8, configurable: false });
                 Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5, configurable: false });
                 Object.defineProperty(navigator, 'platform', { get: () => 'Linux aarch64', configurable: false });
 
+                // 3. WebGL Spoofing
                 const fakeVendor = "$vendor";
                 const fakeRenderer = "$renderer";
 
@@ -27,6 +33,7 @@ object StealthScript {
                 patchWebGL(window.WebGLRenderingContext ? window.WebGLRenderingContext.prototype : null);
                 patchWebGL(window.WebGL2RenderingContext ? window.WebGL2RenderingContext.prototype : null);
 
+                // 4. Canvas Noise Injection (Deterministic per seed)
                 const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
                 HTMLCanvasElement.prototype.toDataURL = function() {
                     const ctx = this.getContext('2d');
@@ -53,6 +60,7 @@ object StealthScript {
                     return res;
                 };
 
+                // 5. Camouflage [native code]
                 const nativeToString = Function.prototype.toString;
                 const customToString = function() {
                     if (this === HTMLCanvasElement.prototype.toDataURL) {

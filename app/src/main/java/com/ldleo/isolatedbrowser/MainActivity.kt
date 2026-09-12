@@ -1,10 +1,13 @@
 package com.ldleo.isolatedbrowser
 
+import android.app.AlertDialog
 import android.app.Dialog
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
@@ -29,7 +32,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var tvVpnStatus: TextView
     private lateinit var btnRefreshIp: TextView
-    private lateinit var btnProfilesList: Button
+    private lateinit var btnProfilesSheet: Button
     private lateinit var btnCreateProfileTop: Button
     private lateinit var profilesScreen: LinearLayout
     private lateinit var tvEmptyMessage: TextView
@@ -39,9 +42,11 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var browserScreen: LinearLayout
     private lateinit var tvActiveBadge: TextView
-    private lateinit var btnClearCurrentSession: Button
+    private lateinit var btnMinimize: Button
+    private lateinit var btnClean: Button
     private lateinit var webViewContainer: FrameLayout
     private var activeWebView: WebView? = null
+    private var currentSheetDialog: Dialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,7 +75,7 @@ class MainActivity : AppCompatActivity() {
     private fun initViews() {
         tvVpnStatus = findViewById(R.id.tvVpnStatus)
         btnRefreshIp = findViewById(R.id.btnRefreshIp)
-        btnProfilesList = findViewById(R.id.btnProfilesList)
+        btnProfilesSheet = findViewById(R.id.btnProfilesSheet)
         btnCreateProfileTop = findViewById(R.id.btnCreateProfileTop)
 
         profilesScreen = findViewById(R.id.profilesScreen)
@@ -81,14 +86,16 @@ class MainActivity : AppCompatActivity() {
 
         browserScreen = findViewById(R.id.browserScreen)
         tvActiveBadge = findViewById(R.id.tvActiveBadge)
-        btnClearCurrentSession = findViewById(R.id.btnClearCurrentSession)
+        btnMinimize = findViewById(R.id.btnMinimize)
+        btnClean = findViewById(R.id.btnClean)
         webViewContainer = findViewById(R.id.webViewContainer)
 
         btnRefreshIp.setOnClickListener { fetchVpnStatus() }
-        btnCreateProfileTop.setOnClickListener { showNewProfileDialog() }
-        btnNewProfileBig.setOnClickListener { showNewProfileDialog() }
-        btnProfilesList.setOnClickListener { showProfilesScreen() }
-        btnClearCurrentSession.setOnClickListener { clearCurrentSessionAndExit() }
+        btnCreateProfileTop.setOnClickListener { showNewProfileDialog(null) }
+        btnNewProfileBig.setOnClickListener { showNewProfileDialog(null) }
+        btnProfilesSheet.setOnClickListener { showProfilesSheet() }
+        btnMinimize.setOnClickListener { showProfilesScreen() }
+        btnClean.setOnClickListener { executeCleanReset() }
     }
 
     private fun fetchVpnStatus() {
@@ -119,7 +126,7 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun showNewProfileDialog() {
+    private fun showNewProfileDialog(profileToEdit: BrowserProfile?) {
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_new_profile)
@@ -129,14 +136,30 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
 
+        val tvTitle = dialog.findViewById<TextView>(R.id.tvDialogTitle)
         val etName = dialog.findViewById<EditText>(R.id.etProfileName)
         val etUrl = dialog.findViewById<EditText>(R.id.etProfileUrl)
         val tvError = dialog.findViewById<TextView>(R.id.tvUrlError)
+        val spinnerDevices = dialog.findViewById<Spinner>(R.id.spinnerDevices)
         val btnSave = dialog.findViewById<Button>(R.id.btnSaveOnly)
         val btnSaveAndOpen = dialog.findViewById<Button>(R.id.btnSaveAndOpen)
         val btnCancel = dialog.findViewById<TextView>(R.id.btnCancelDialog)
 
-        fun validateAndCreate(openImmediately: Boolean) {
+        val deviceNames = BrowserProfile.DEVICE_CATALOG.map { it.name }
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, deviceNames)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerDevices.adapter = adapter
+
+        if (profileToEdit != null) {
+            tvTitle.text = "Editar perfil"
+            etName.setText(profileToEdit.name)
+            etUrl.setText(profileToEdit.startUrl)
+            val currentIdx = deviceNames.indexOf(profileToEdit.deviceName)
+            if (currentIdx >= 0) spinnerDevices.setSelection(currentIdx)
+            btnSaveAndOpen.visibility = View.GONE
+        }
+
+        fun saveAction(openNow: Boolean) {
             val name = etName.text.toString().trim().ifEmpty { "Perfil ${profiles.size + 1}" }
             val rawUrl = etUrl.text.toString().trim()
 
@@ -146,40 +169,106 @@ class MainActivity : AppCompatActivity() {
             }
             tvError.visibility = View.GONE
 
-            val newId = "profile_${System.currentTimeMillis()}"
-            val seed = (1000..99999).random()
-            val gpuIndex = profiles.size % BrowserProfile.GPU_LIST.size
-            val gpu = BrowserProfile.GPU_LIST[gpuIndex]
+            val selectedDevice = BrowserProfile.DEVICE_CATALOG[spinnerDevices.selectedItemPosition]
 
-            val newProfile = BrowserProfile(
-                id = newId,
-                name = name,
-                startUrl = rawUrl,
-                seed = seed,
-                gpuVendor = gpu.first,
-                gpuRenderer = gpu.second
-            )
+            if (profileToEdit != null) {
+                profileToEdit.name = name
+                profileToEdit.startUrl = rawUrl
+                profileToEdit.deviceName = selectedDevice.name
+                profileToEdit.gpuVendor = selectedDevice.gpuVendor
+                profileToEdit.gpuRenderer = selectedDevice.gpuRenderer
+                profileToEdit.userAgent = selectedDevice.userAgent
+                saveProfilesToPrefs()
+                refreshProfilesUi()
+                dialog.dismiss()
+                Toast.makeText(this, "Perfil actualizado", Toast.LENGTH_SHORT).show()
+            } else {
+                val newId = "profile_${System.currentTimeMillis()}"
+                val seed = (1000..99999).random()
 
-            profiles.add(newProfile)
-            saveProfilesToPrefs()
-            refreshProfilesUi()
-            dialog.dismiss()
+                val newProfile = BrowserProfile(
+                    id = newId,
+                    name = name,
+                    startUrl = rawUrl,
+                    seed = seed,
+                    deviceName = selectedDevice.name,
+                    gpuVendor = selectedDevice.gpuVendor,
+                    gpuRenderer = selectedDevice.gpuRenderer,
+                    userAgent = selectedDevice.userAgent
+                )
 
-            if (openImmediately) {
-                launchProfile(newProfile)
+                profiles.add(newProfile)
+                saveProfilesToPrefs()
+                refreshProfilesUi()
+                dialog.dismiss()
+
+                if (openNow) {
+                    onProfileSelected(newProfile)
+                }
             }
         }
 
-        btnSave.setOnClickListener { validateAndCreate(false) }
-        btnSaveAndOpen.setOnClickListener { validateAndCreate(true) }
+        btnSave.setOnClickListener { saveAction(false) }
+        btnSaveAndOpen.setOnClickListener { saveAction(true) }
         btnCancel.setOnClickListener { dialog.dismiss() }
 
         dialog.show()
     }
 
+    private fun showProfileOptions(profile: BrowserProfile) {
+        val options = arrayOf("Editar", "Eliminar")
+        AlertDialog.Builder(this)
+            .setTitle(profile.name)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> showNewProfileDialog(profile)
+                    1 -> {
+                        if (activeProfile?.id == profile.id) {
+                            activeProfile = null
+                            showProfilesScreen()
+                        }
+                        profiles.remove(profile)
+                        saveProfilesToPrefs()
+                        refreshProfilesUi()
+                        currentSheetDialog?.dismiss()
+                        Toast.makeText(this, "Perfil eliminado", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun onProfileSelected(targetProfile: BrowserProfile) {
+        if (activeProfile?.id == targetProfile.id) {
+            currentSheetDialog?.dismiss()
+            profilesScreen.visibility = View.GONE
+            browserScreen.visibility = View.VISIBLE
+            activeWebView?.onResume()
+            activeWebView?.resumeTimers()
+            return
+        }
+
+        if (activeProfile != null) {
+            AlertDialog.Builder(this)
+                .setTitle("Cambiar de sesión")
+                .setMessage("¿Deseas abrir '${targetProfile.name}' y pausar '${activeProfile?.name}'?")
+                .setPositiveButton("Sí") { _, _ ->
+                    activeWebView?.onPause()
+                    activeWebView?.pauseTimers()
+                    currentSheetDialog?.dismiss()
+                    launchProfile(targetProfile)
+                }
+                .setNegativeButton("No", null)
+                .show()
+        } else {
+            currentSheetDialog?.dismiss()
+            launchProfile(targetProfile)
+        }
+    }
+
     private fun launchProfile(profile: BrowserProfile) {
         activeProfile = profile
-        tvActiveBadge.text = "● ${profile.name} [${profile.gpuRenderer}]"
+        tvActiveBadge.text = "● ${profile.name} [${profile.deviceName}]"
 
         activeWebView?.let {
             it.onPause()
@@ -200,6 +289,7 @@ class MainActivity : AppCompatActivity() {
         settings.databaseEnabled = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.mediaPlaybackRequiresUserGesture = true
+        settings.userAgentString = profile.userAgent
 
         if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
             val profileStore = ProfileStore.getInstance()
@@ -211,7 +301,7 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                val script = StealthScript.generate(profile.seed, profile.gpuVendor, profile.gpuRenderer)
+                val script = StealthScript.generate(profile.seed, profile.gpuVendor, profile.gpuRenderer, profile.userAgent)
                 view?.evaluateJavascript(script, null)
             }
 
@@ -247,7 +337,37 @@ class MainActivity : AppCompatActivity() {
         refreshProfilesUi()
     }
 
-    private fun clearCurrentSessionAndExit() {
+    private fun showProfilesSheet() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.sheet_profiles)
+        dialog.window?.let { w ->
+            w.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            w.setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.65).toInt()
+            )
+            w.setGravity(Gravity.BOTTOM)
+        }
+
+        val llSheet = dialog.findViewById<LinearLayout>(R.id.llSheetProfiles)
+        val btnNew = dialog.findViewById<Button>(R.id.btnSheetNewProfile)
+        btnNew.setOnClickListener {
+            dialog.dismiss()
+            showNewProfileDialog(null)
+        }
+
+        llSheet.removeAllViews()
+        for (profile in profiles) {
+            val card = createProfileCard(profile)
+            llSheet.addView(card)
+        }
+
+        currentSheetDialog = dialog
+        dialog.show()
+    }
+
+    private fun executeCleanReset() {
         activeProfile?.let { profile ->
             if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
                 val profileStore = ProfileStore.getInstance()
@@ -257,9 +377,75 @@ class MainActivity : AppCompatActivity() {
             }
             activeWebView?.clearCache(true)
             activeWebView?.clearHistory()
-            Toast.makeText(this, "Sesión borrada por completo", Toast.LENGTH_SHORT).show()
+
+            // Reseteo limpio: nuevo seed y nuevo dispositivo aleatorio de la lista
+            profile.seed = (1000..99999).random()
+            val randomDev = BrowserProfile.DEVICE_CATALOG.random()
+            profile.deviceName = randomDev.name
+            profile.gpuVendor = randomDev.gpuVendor
+            profile.gpuRenderer = randomDev.gpuRenderer
+            profile.userAgent = randomDev.userAgent
+
+            saveProfilesToPrefs()
+            tvActiveBadge.text = "● ${profile.name} [${profile.deviceName}]"
+            Toast.makeText(this, "Clean: Huella y dispositivo reseteados", Toast.LENGTH_SHORT).show()
+
+            activeWebView?.settings?.userAgentString = profile.userAgent
+            activeWebView?.loadUrl(profile.startUrl)
         }
-        showProfilesScreen()
+    }
+
+    private fun createProfileCard(profile: BrowserProfile): View {
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.HORIZONTAL
+        card.setBackgroundResource(R.drawable.bg_card)
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        params.setMargins(0, 0, 0, 16)
+        card.layoutParams = params
+        card.setPadding(28, 24, 16, 24)
+        card.gravity = Gravity.CENTER_VERTICAL
+        card.isClickable = true
+        card.isFocusable = true
+        card.setOnClickListener { onProfileSelected(profile) }
+
+        val infoCol = LinearLayout(this)
+        infoCol.orientation = LinearLayout.VERTICAL
+        infoCol.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+        val tvName = TextView(this)
+        tvName.text = profile.name
+        tvName.textSize = 16f
+        tvName.setTextColor(Color.WHITE)
+        tvName.setTypeface(null, Typeface.BOLD)
+        infoCol.addView(tvName)
+
+        val tvUrl = TextView(this)
+        tvUrl.text = profile.startUrl
+        tvUrl.textSize = 12f
+        tvUrl.setTextColor(Color.parseColor("#8E8E93"))
+        tvUrl.setPadding(0, 4, 0, 4)
+        infoCol.addView(tvUrl)
+
+        val tvHardware = TextView(this)
+        tvHardware.text = "${profile.deviceName} | Seed: #${profile.seed}"
+        tvHardware.textSize = 11f
+        tvHardware.setTextColor(Color.parseColor("#34C759"))
+        infoCol.addView(tvHardware)
+
+        card.addView(infoCol)
+
+        val btnDots = TextView(this)
+        btnDots.text = "⋮"
+        btnDots.textSize = 24f
+        btnDots.setTextColor(Color.parseColor("#8E8E93"))
+        btnDots.setPadding(24, 16, 24, 16)
+        btnDots.setOnClickListener { showProfileOptions(profile) }
+        card.addView(btnDots)
+
+        return card
     }
 
     private fun refreshProfilesUi() {
@@ -273,65 +459,7 @@ class MainActivity : AppCompatActivity() {
             scrollProfiles.visibility = View.VISIBLE
 
             for (profile in profiles) {
-                val card = LinearLayout(this)
-                card.orientation = LinearLayout.VERTICAL
-                card.setBackgroundResource(R.drawable.bg_card)
-                val params = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                params.setMargins(0, 0, 0, 16)
-                card.layoutParams = params
-                card.setPadding(24, 24, 24, 24)
-
-                val tvName = TextView(this)
-                tvName.text = profile.name
-                tvName.textSize = 16f
-                tvName.setTextColor(Color.WHITE)
-                card.addView(tvName)
-
-                val tvUrl = TextView(this)
-                tvUrl.text = profile.startUrl
-                tvUrl.textSize = 12f
-                tvUrl.setTextColor(Color.parseColor("#8E8E93"))
-                tvUrl.setPadding(0, 4, 0, 8)
-                card.addView(tvUrl)
-
-                val tvHardware = TextView(this)
-                tvHardware.text = "GPU: ${profile.gpuRenderer} | Seed: #${profile.seed}"
-                tvHardware.textSize = 11f
-                tvHardware.setTextColor(Color.parseColor("#34C759"))
-                card.addView(tvHardware)
-
-                val buttonsRow = LinearLayout(this)
-                buttonsRow.orientation = LinearLayout.HORIZONTAL
-                buttonsRow.setPadding(0, 12, 0, 0)
-
-                val btnOpen = Button(this)
-                btnOpen.text = "Abrir"
-                btnOpen.setBackgroundColor(Color.parseColor("#C5B3F9"))
-                btnOpen.setTextColor(Color.BLACK)
-                btnOpen.setOnClickListener { launchProfile(profile) }
-                buttonsRow.addView(btnOpen)
-
-                val btnDelete = Button(this)
-                btnDelete.text = "Eliminar"
-                btnDelete.setBackgroundColor(Color.parseColor("#FF453A"))
-                btnDelete.setTextColor(Color.WHITE)
-                val deleteParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                deleteParams.setMargins(16, 0, 0, 0)
-                btnDelete.layoutParams = deleteParams
-                btnDelete.setOnClickListener {
-                    profiles.remove(profile)
-                    saveProfilesToPrefs()
-                    refreshProfilesUi()
-                }
-                buttonsRow.addView(btnDelete)
-
-                card.addView(buttonsRow)
+                val card = createProfileCard(profile)
                 llProfilesContainer.addView(card)
             }
         }
