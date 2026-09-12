@@ -33,11 +33,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvVpnStatus: TextView
     private lateinit var btnRefreshIp: TextView
     private lateinit var btnProfilesSheet: Button
+    private lateinit var btnFlashTop: Button
     private lateinit var btnCreateProfileTop: Button
     private lateinit var profilesScreen: LinearLayout
     private lateinit var tvEmptyMessage: TextView
     private lateinit var scrollProfiles: ScrollView
     private lateinit var llProfilesContainer: LinearLayout
+    private lateinit var btnFlashSessionBig: Button
     private lateinit var btnNewProfileBig: Button
 
     private lateinit var browserScreen: LinearLayout
@@ -76,12 +78,14 @@ class MainActivity : AppCompatActivity() {
         tvVpnStatus = findViewById(R.id.tvVpnStatus)
         btnRefreshIp = findViewById(R.id.btnRefreshIp)
         btnProfilesSheet = findViewById(R.id.btnProfilesSheet)
+        btnFlashTop = findViewById(R.id.btnFlashTop)
         btnCreateProfileTop = findViewById(R.id.btnCreateProfileTop)
 
         profilesScreen = findViewById(R.id.profilesScreen)
         tvEmptyMessage = findViewById(R.id.tvEmptyMessage)
         scrollProfiles = findViewById(R.id.scrollProfiles)
         llProfilesContainer = findViewById(R.id.llProfilesContainer)
+        btnFlashSessionBig = findViewById(R.id.btnFlashSessionBig)
         btnNewProfileBig = findViewById(R.id.btnNewProfileBig)
 
         browserScreen = findViewById(R.id.browserScreen)
@@ -93,6 +97,8 @@ class MainActivity : AppCompatActivity() {
         btnRefreshIp.setOnClickListener { fetchVpnStatus() }
         btnCreateProfileTop.setOnClickListener { showNewProfileDialog(null) }
         btnNewProfileBig.setOnClickListener { showNewProfileDialog(null) }
+        btnFlashTop.setOnClickListener { launchFlashSession() }
+        btnFlashSessionBig.setOnClickListener { launchFlashSession() }
         btnProfilesSheet.setOnClickListener { showProfilesSheet() }
         btnMinimize.setOnClickListener { showProfilesScreen() }
         btnClean.setOnClickListener { executeCleanReset() }
@@ -124,6 +130,23 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun launchFlashSession() {
+        currentSheetDialog?.dismiss()
+        val randomDev = BrowserProfile.DEVICE_CATALOG.random()
+        val seed = (1000..99999).random()
+        val flashProfile = BrowserProfile(
+            id = "flash_temp",
+            name = "⚡ Sesión Flash",
+            startUrl = "https://www.google.com",
+            seed = seed,
+            deviceName = randomDev.name,
+            gpuVendor = randomDev.gpuVendor,
+            gpuRenderer = randomDev.gpuRenderer,
+            userAgent = randomDev.userAgent
+        )
+        launchProfile(flashProfile)
     }
 
     private fun showNewProfileDialog(profileToEdit: BrowserProfile?) {

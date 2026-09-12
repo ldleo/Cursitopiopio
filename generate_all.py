@@ -91,8 +91,8 @@ android {
         applicationId "com.ldleo.isolatedbrowser"
         minSdk 26
         targetSdk 34
-        versionCode 3
-        versionName "1.2"
+        versionCode 4
+        versionName "1.3"
     }
 
     buildTypes {
@@ -261,6 +261,16 @@ with open("app/src/main/res/layout/activity_main.xml", "w") as f:
             android:textColor="@color/text_primary" />
 
         <Button
+            android:id="@+id/btnFlashTop"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="⚡ Flash"
+            android:textSize="12sp"
+            android:layout_marginStart="6dp"
+            android:backgroundTint="#F5A623"
+            android:textColor="#000000" />
+
+        <Button
             android:id="@+id/btnCreateProfileTop"
             android:layout_width="wrap_content"
             android:layout_height="36dp"
@@ -306,14 +316,32 @@ with open("app/src/main/res/layout/activity_main.xml", "w") as f:
                     android:orientation="vertical" />
             </ScrollView>
 
-            <Button
-                android:id="@+id/btnNewProfileBig"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:text="+ Nuevo perfil"
-                android:textColor="#000000"
-                android:textStyle="bold"
-                android:backgroundTint="@color/accent_purple" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnFlashSessionBig"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:text="⚡ Sesión Flash"
+                    android:textColor="#000000"
+                    android:textStyle="bold"
+                    android:backgroundTint="#F5A623"
+                    android:layout_marginEnd="6dp" />
+
+                <Button
+                    android:id="@+id/btnNewProfileBig"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:text="+ Nuevo perfil"
+                    android:textColor="#000000"
+                    android:textStyle="bold"
+                    android:backgroundTint="@color/accent_purple" />
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
@@ -742,11 +770,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvVpnStatus: TextView
     private lateinit var btnRefreshIp: TextView
     private lateinit var btnProfilesSheet: Button
+    private lateinit var btnFlashTop: Button
     private lateinit var btnCreateProfileTop: Button
     private lateinit var profilesScreen: LinearLayout
     private lateinit var tvEmptyMessage: TextView
     private lateinit var scrollProfiles: ScrollView
     private lateinit var llProfilesContainer: LinearLayout
+    private lateinit var btnFlashSessionBig: Button
     private lateinit var btnNewProfileBig: Button
 
     private lateinit var browserScreen: LinearLayout
@@ -785,12 +815,14 @@ class MainActivity : AppCompatActivity() {
         tvVpnStatus = findViewById(R.id.tvVpnStatus)
         btnRefreshIp = findViewById(R.id.btnRefreshIp)
         btnProfilesSheet = findViewById(R.id.btnProfilesSheet)
+        btnFlashTop = findViewById(R.id.btnFlashTop)
         btnCreateProfileTop = findViewById(R.id.btnCreateProfileTop)
 
         profilesScreen = findViewById(R.id.profilesScreen)
         tvEmptyMessage = findViewById(R.id.tvEmptyMessage)
         scrollProfiles = findViewById(R.id.scrollProfiles)
         llProfilesContainer = findViewById(R.id.llProfilesContainer)
+        btnFlashSessionBig = findViewById(R.id.btnFlashSessionBig)
         btnNewProfileBig = findViewById(R.id.btnNewProfileBig)
 
         browserScreen = findViewById(R.id.browserScreen)
@@ -802,6 +834,8 @@ class MainActivity : AppCompatActivity() {
         btnRefreshIp.setOnClickListener { fetchVpnStatus() }
         btnCreateProfileTop.setOnClickListener { showNewProfileDialog(null) }
         btnNewProfileBig.setOnClickListener { showNewProfileDialog(null) }
+        btnFlashTop.setOnClickListener { launchFlashSession() }
+        btnFlashSessionBig.setOnClickListener { launchFlashSession() }
         btnProfilesSheet.setOnClickListener { showProfilesSheet() }
         btnMinimize.setOnClickListener { showProfilesScreen() }
         btnClean.setOnClickListener { executeCleanReset() }
@@ -833,6 +867,23 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun launchFlashSession() {
+        currentSheetDialog?.dismiss()
+        val randomDev = BrowserProfile.DEVICE_CATALOG.random()
+        val seed = (1000..99999).random()
+        val flashProfile = BrowserProfile(
+            id = "flash_temp",
+            name = "⚡ Sesión Flash",
+            startUrl = "https://www.google.com",
+            seed = seed,
+            deviceName = randomDev.name,
+            gpuVendor = randomDev.gpuVendor,
+            gpuRenderer = randomDev.gpuRenderer,
+            userAgent = randomDev.userAgent
+        )
+        launchProfile(flashProfile)
     }
 
     private fun showNewProfileDialog(profileToEdit: BrowserProfile?) {
