@@ -131,8 +131,8 @@ jobs:
                   applicationId "com.ldleo.isolatedbrowser"
                   minSdk 26
                   targetSdk 34
-                  versionCode 3
-                  versionName "1.2"
+                  versionCode 4
+                  versionName "1.3"
               }
 
               buildTypes {
@@ -301,6 +301,16 @@ jobs:
                       android:textColor="@color/text_primary" />
 
                   <Button
+                      android:id="@+id/btnFlashTop"
+                      android:layout_width="wrap_content"
+                      android:layout_height="36dp"
+                      android:text="⚡ Flash"
+                      android:textSize="12sp"
+                      android:layout_marginStart="6dp"
+                      android:backgroundTint="#F5A623"
+                      android:textColor="#000000" />
+
+                  <Button
                       android:id="@+id/btnCreateProfileTop"
                       android:layout_width="wrap_content"
                       android:layout_height="36dp"
@@ -346,14 +356,32 @@ jobs:
                               android:orientation="vertical" />
                       </ScrollView>
 
-                      <Button
-                          android:id="@+id/btnNewProfileBig"
+                      <LinearLayout
                           android:layout_width="match_parent"
-                          android:layout_height="50dp"
-                          android:text="+ Nuevo perfil"
-                          android:textColor="#000000"
-                          android:textStyle="bold"
-                          android:backgroundTint="@color/accent_purple" />
+                          android:layout_height="wrap_content"
+                          android:orientation="horizontal">
+
+                          <Button
+                              android:id="@+id/btnFlashSessionBig"
+                              android:layout_width="0dp"
+                              android:layout_height="50dp"
+                              android:layout_weight="1"
+                              android:text="⚡ Sesión Flash"
+                              android:textColor="#000000"
+                              android:textStyle="bold"
+                              android:backgroundTint="#F5A623"
+                              android:layout_marginEnd="6dp" />
+
+                          <Button
+                              android:id="@+id/btnNewProfileBig"
+                              android:layout_width="0dp"
+                              android:layout_height="50dp"
+                              android:layout_weight="1"
+                              android:text="+ Nuevo perfil"
+                              android:textColor="#000000"
+                              android:textStyle="bold"
+                              android:backgroundTint="@color/accent_purple" />
+                      </LinearLayout>
                   </LinearLayout>
 
                   <LinearLayout
@@ -782,11 +810,13 @@ jobs:
               private lateinit var tvVpnStatus: TextView
               private lateinit var btnRefreshIp: TextView
               private lateinit var btnProfilesSheet: Button
+              private lateinit var btnFlashTop: Button
               private lateinit var btnCreateProfileTop: Button
               private lateinit var profilesScreen: LinearLayout
               private lateinit var tvEmptyMessage: TextView
               private lateinit var scrollProfiles: ScrollView
               private lateinit var llProfilesContainer: LinearLayout
+              private lateinit var btnFlashSessionBig: Button
               private lateinit var btnNewProfileBig: Button
 
               private lateinit var browserScreen: LinearLayout
@@ -825,12 +855,14 @@ jobs:
                   tvVpnStatus = findViewById(R.id.tvVpnStatus)
                   btnRefreshIp = findViewById(R.id.btnRefreshIp)
                   btnProfilesSheet = findViewById(R.id.btnProfilesSheet)
+                  btnFlashTop = findViewById(R.id.btnFlashTop)
                   btnCreateProfileTop = findViewById(R.id.btnCreateProfileTop)
 
                   profilesScreen = findViewById(R.id.profilesScreen)
                   tvEmptyMessage = findViewById(R.id.tvEmptyMessage)
                   scrollProfiles = findViewById(R.id.scrollProfiles)
                   llProfilesContainer = findViewById(R.id.llProfilesContainer)
+                  btnFlashSessionBig = findViewById(R.id.btnFlashSessionBig)
                   btnNewProfileBig = findViewById(R.id.btnNewProfileBig)
 
                   browserScreen = findViewById(R.id.browserScreen)
@@ -842,6 +874,8 @@ jobs:
                   btnRefreshIp.setOnClickListener { fetchVpnStatus() }
                   btnCreateProfileTop.setOnClickListener { showNewProfileDialog(null) }
                   btnNewProfileBig.setOnClickListener { showNewProfileDialog(null) }
+                  btnFlashTop.setOnClickListener { launchFlashSession() }
+                  btnFlashSessionBig.setOnClickListener { launchFlashSession() }
                   btnProfilesSheet.setOnClickListener { showProfilesSheet() }
                   btnMinimize.setOnClickListener { showProfilesScreen() }
                   btnClean.setOnClickListener { executeCleanReset() }
@@ -873,6 +907,23 @@ jobs:
                           }
                       }
                   }.start()
+              }
+
+              private fun launchFlashSession() {
+                  currentSheetDialog?.dismiss()
+                  val randomDev = BrowserProfile.DEVICE_CATALOG.random()
+                  val seed = (1000..99999).random()
+                  val flashProfile = BrowserProfile(
+                      id = "flash_temp",
+                      name = "⚡ Sesión Flash",
+                      startUrl = "https://www.google.com",
+                      seed = seed,
+                      deviceName = randomDev.name,
+                      gpuVendor = randomDev.gpuVendor,
+                      gpuRenderer = randomDev.gpuRenderer,
+                      userAgent = randomDev.userAgent
+                  )
+                  launchProfile(flashProfile)
               }
 
               private fun showNewProfileDialog(profileToEdit: BrowserProfile?) {
@@ -1262,7 +1313,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --staged --quiet || (git commit -m "Update v1.2: Curated 15 models, WebRTC shield, custom icon [skip ci]" && git push) || true
+          git diff --staged --quiet || (git commit -m "Update v1.3: Flash session, curated devices, WebRTC shield, custom icon [skip ci]" && git push) || true
 
       - name: Setup Gradle Wrapper
         run: |
@@ -1275,16 +1326,16 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LD_LEO-v1.2-APK
+          name: LD_LEO-v1.3-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Create Release
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.0
-          name: "LD_LEO v1.2.0"
-          body: "Versión 1.2: Catálogo curado de 15 celulares gama media/alta con User-Agent exacto, WebRTC Shield, icono circular LD_LEO, apertura directa de tarjetas con menú 3 puntos y Clean con rotación de dispositivo."
+          tag_name: v1.3.0
+          name: "LD_LEO v1.3.0"
+          body: "Versión 1.3: Botón de Sesión Flash rápida a Google, catálogo curado de 15 celulares, WebRTC Shield, icono circular LD_LEO y Clean con rotación de dispositivo."
           files: app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
