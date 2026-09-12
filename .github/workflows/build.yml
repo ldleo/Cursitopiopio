@@ -22,21 +22,74 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Pillow for Icon Generation
+        run: pip install pillow
+
       - name: Configure AndroidX
         run: |
           echo "android.useAndroidX=true" > gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
 
-      - name: Generate Android Project Source
+      - name: Generate Project and Icons
         run: |
-          cat << 'PYEOF' > generate_project.py
+          cat << 'PYEOF' > generate_all.py
           import os
+          from PIL import Image, ImageDraw, ImageFont
 
           os.makedirs("app/src/main/java/com/ldleo/isolatedbrowser", exist_ok=True)
           os.makedirs("app/src/main/res/layout", exist_ok=True)
           os.makedirs("app/src/main/res/values", exist_ok=True)
           os.makedirs("app/src/main/res/drawable", exist_ok=True)
 
+          # Generate Icons with LD_LEO
+          sizes = {
+              "mipmap-mdpi": 48,
+              "mipmap-hdpi": 72,
+              "mipmap-xhdpi": 96,
+              "mipmap-xxhdpi": 144,
+              "mipmap-xxxhdpi": 192
+          }
+
+          for folder, size in sizes.items():
+              os.makedirs(f"app/src/main/res/{folder}", exist_ok=True)
+              font = None
+              for fpath in [
+                  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                  "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                  "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"
+              ]:
+                  if os.path.exists(fpath):
+                      font = ImageFont.truetype(fpath, int(size * 0.22))
+                      break
+              if not font:
+                  font = ImageFont.load_default()
+
+              text = "LD_LEO"
+
+              # Square / Adaptive
+              img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+              draw = ImageDraw.Draw(img)
+              draw.rounded_rectangle(, radius=size // 4, fill=(18, 18, 18, 255), outline=(50, 50, 50, 255), width=max(1, size // 48))
+              bbox = draw.textbbox((0, 0), text, font=font)
+              w, h = bbox - bbox[0], bbox - bbox
+              x = (size - w) / 2
+              y = (size - h) / 2 - bbox
+              draw.text((x, y), text, fill=(255, 255, 255, 255), font=font)
+              img.save(f"app/src/main/res/{folder}/ic_launcher.png")
+
+              # Round Icon
+              rimg = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+              rdraw = ImageDraw.Draw(rimg)
+              rdraw.ellipse(, fill=(14, 14, 14, 255), outline=(60, 60, 60, 255), width=max(1, size // 48))
+              rdraw.text((x, y), text, fill=(255, 255, 255, 255), font=font)
+              rimg.save(f"app/src/main/res/{folder}/ic_launcher_round.png")
+
+          # Gradle files
           with open("settings.gradle", "w") as f:
               f.write("""pluginManagement {
               repositories {
@@ -77,8 +130,8 @@ jobs:
                   applicationId "com.ldleo.isolatedbrowser"
                   minSdk 26
                   targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
+                  versionCode 3
+                  versionName "1.2"
               }
 
               buildTypes {
@@ -112,9 +165,9 @@ jobs:
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
               <application
                   android:allowBackup="true"
-                  android:icon="@android:drawable/sym_def_app_icon"
-                  android:label="Navegador"
-                  android:roundIcon="@android:drawable/sym_def_app_icon"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:label="LD_LEO"
                   android:supportsRtl="true"
                   android:theme="@style/Theme.IsolatedBrowser"
                   android:usesCleartextTraffic="true">
@@ -132,7 +185,7 @@ jobs:
 
           with open("app/src/main/res/values/strings.xml", "w") as f:
               f.write("""<resources>
-              <string name="app_name">Navegador</string>
+              <string name="app_name">LD_LEO</string>
           </resources>""")
 
           with open("app/src/main/res/values/colors.xml", "w") as f:
@@ -140,7 +193,7 @@ jobs:
           <resources>
               <color name="bg_black">#0D0D0D</color>
               <color name="card_dark">#181818</color>
-              <color name="card_border">#2C2C2C</color>
+              <color name="card_border">#2A2A2A</color>
               <color name="text_primary">#F0F0F0</color>
               <color name="text_secondary">#8E8E93</color>
               <color name="accent_purple">#C5B3F9</color>
@@ -170,6 +223,14 @@ jobs:
               <solid android:color="#242424" />
               <corners android:radius="10dp" />
               <stroke android:width="1dp" android:color="#383838" />
+          </shape>""")
+
+          with open("app/src/main/res/drawable/bg_sheet.xml", "w") as f:
+              f.write("""<?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android">
+              <solid android:color="#141414" />
+              <corners android:topLeftRadius="20dp" android:topRightRadius="20dp" />
+              <stroke android:width="1dp" android:color="#2C2C2C" />
           </shape>""")
 
           with open("app/src/main/res/layout/activity_main.xml", "w") as f:
@@ -219,7 +280,7 @@ jobs:
                   <TextView
                       android:layout_width="wrap_content"
                       android:layout_height="wrap_content"
-                      android:text="Navegador"
+                      android:text="LD_LEO"
                       android:textColor="@color/text_primary"
                       android:textSize="18sp"
                       android:textStyle="bold" />
@@ -230,7 +291,7 @@ jobs:
                       android:layout_weight="1" />
 
                   <Button
-                      android:id="@+id/btnProfilesList"
+                      android:id="@+id/btnProfilesSheet"
                       android:layout_width="wrap_content"
                       android:layout_height="36dp"
                       android:text="Perfiles"
@@ -319,10 +380,20 @@ jobs:
                               android:textSize="12sp" />
 
                           <Button
-                              android:id="@+id/btnClearCurrentSession"
+                              android:id="@+id/btnMinimize"
                               android:layout_width="wrap_content"
                               android:layout_height="32dp"
-                              android:text="Limpiar y Salir"
+                              android:text="Minimizar"
+                              android:textSize="11sp"
+                              android:backgroundTint="#2C2C2E"
+                              android:textColor="@color/text_primary"
+                              android:layout_marginEnd="6dp" />
+
+                          <Button
+                              android:id="@+id/btnClean"
+                              android:layout_width="wrap_content"
+                              android:layout_height="32dp"
+                              android:text="Clean"
                               android:textSize="11sp"
                               android:backgroundTint="@color/accent_red"
                               android:textColor="@color/text_primary" />
@@ -346,6 +417,7 @@ jobs:
               android:background="@drawable/bg_card">
 
               <TextView
+                  android:id="@+id/tvDialogTitle"
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
                   android:text="Nuevo perfil"
@@ -448,6 +520,59 @@ jobs:
                   android:textStyle="bold" />
           </LinearLayout>""")
 
+          with open("app/src/main/res/layout/sheet_profiles.xml", "w") as f:
+              f.write("""<?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:padding="16dp"
+              android:background="@drawable/bg_sheet">
+
+              <View
+                  android:layout_width="40dp"
+                  android:layout_height="4dp"
+                  android:background="#444444"
+                  android:layout_gravity="center_horizontal"
+                  android:layout_marginBottom="12dp" />
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="horizontal"
+                  android:gravity="center_vertical"
+                  android:layout_marginBottom="12dp">
+
+                  <TextView
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:text="Mis Perfiles"
+                      android:textColor="@color/text_primary"
+                      android:textSize="18sp"
+                      android:textStyle="bold" />
+
+                  <Button
+                      android:id="@+id/btnSheetNewProfile"
+                      android:layout_width="wrap_content"
+                      android:layout_height="36dp"
+                      android:text="+ Nuevo"
+                      android:textSize="12sp"
+                      android:backgroundTint="@color/accent_purple"
+                      android:textColor="#000000" />
+              </LinearLayout>
+
+              <ScrollView
+                  android:layout_width="match_parent"
+                  android:layout_height="320dp">
+                  <LinearLayout
+                      android:id="@+id/llSheetProfiles"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical" />
+              </ScrollView>
+          </LinearLayout>""")
+
           with open("app/src/main/java/com/ldleo/isolatedbrowser/StealthScript.kt", "w") as f:
               f.write("""package com.ldleo.isolatedbrowser
 
@@ -534,9 +659,9 @@ jobs:
               val id: String,
               var name: String,
               var startUrl: String,
-              val seed: Int,
-              val gpuVendor: String,
-              val gpuRenderer: String
+              var seed: Int,
+              var gpuVendor: String,
+              var gpuRenderer: String
           ) {
               fun toJson(): JSONObject {
                   val json = JSONObject()
@@ -585,11 +710,14 @@ jobs:
           with open("app/src/main/java/com/ldleo/isolatedbrowser/MainActivity.kt", "w") as f:
               f.write("""package com.ldleo.isolatedbrowser
 
+          import android.app.AlertDialog
           import android.app.Dialog
           import android.graphics.Bitmap
           import android.graphics.Color
+          import android.graphics.Typeface
           import android.graphics.drawable.ColorDrawable
           import android.os.Bundle
+          import android.view.Gravity
           import android.view.View
           import android.view.ViewGroup
           import android.view.Window
@@ -614,7 +742,7 @@ jobs:
 
               private lateinit var tvVpnStatus: TextView
               private lateinit var btnRefreshIp: TextView
-              private lateinit var btnProfilesList: Button
+              private lateinit var btnProfilesSheet: Button
               private lateinit var btnCreateProfileTop: Button
               private lateinit var profilesScreen: LinearLayout
               private lateinit var tvEmptyMessage: TextView
@@ -624,9 +752,11 @@ jobs:
 
               private lateinit var browserScreen: LinearLayout
               private lateinit var tvActiveBadge: TextView
-              private lateinit var btnClearCurrentSession: Button
+              private lateinit var btnMinimize: Button
+              private lateinit var btnClean: Button
               private lateinit var webViewContainer: FrameLayout
               private var activeWebView: WebView? = null
+              private var currentSheetDialog: Dialog? = null
 
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
@@ -655,7 +785,7 @@ jobs:
               private fun initViews() {
                   tvVpnStatus = findViewById(R.id.tvVpnStatus)
                   btnRefreshIp = findViewById(R.id.btnRefreshIp)
-                  btnProfilesList = findViewById(R.id.btnProfilesList)
+                  btnProfilesSheet = findViewById(R.id.btnProfilesSheet)
                   btnCreateProfileTop = findViewById(R.id.btnCreateProfileTop)
 
                   profilesScreen = findViewById(R.id.profilesScreen)
@@ -666,14 +796,16 @@ jobs:
 
                   browserScreen = findViewById(R.id.browserScreen)
                   tvActiveBadge = findViewById(R.id.tvActiveBadge)
-                  btnClearCurrentSession = findViewById(R.id.btnClearCurrentSession)
+                  btnMinimize = findViewById(R.id.btnMinimize)
+                  btnClean = findViewById(R.id.btnClean)
                   webViewContainer = findViewById(R.id.webViewContainer)
 
                   btnRefreshIp.setOnClickListener { fetchVpnStatus() }
-                  btnCreateProfileTop.setOnClickListener { showNewProfileDialog() }
-                  btnNewProfileBig.setOnClickListener { showNewProfileDialog() }
-                  btnProfilesList.setOnClickListener { showProfilesScreen() }
-                  btnClearCurrentSession.setOnClickListener { clearCurrentSessionAndExit() }
+                  btnCreateProfileTop.setOnClickListener { showNewProfileDialog(null) }
+                  btnNewProfileBig.setOnClickListener { showNewProfileDialog(null) }
+                  btnProfilesSheet.setOnClickListener { showProfilesSheet() }
+                  btnMinimize.setOnClickListener { showProfilesScreen() }
+                  btnClean.setOnClickListener { executeCleanReset() }
               }
 
               private fun fetchVpnStatus() {
@@ -704,7 +836,7 @@ jobs:
                   }.start()
               }
 
-              private fun showNewProfileDialog() {
+              private fun showNewProfileDialog(profileToEdit: BrowserProfile?) {
                   val dialog = Dialog(this)
                   dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
                   dialog.setContentView(R.layout.dialog_new_profile)
@@ -714,6 +846,7 @@ jobs:
                       ViewGroup.LayoutParams.WRAP_CONTENT
                   )
 
+                  val tvTitle = dialog.findViewById<TextView>(R.id.tvDialogTitle)
                   val etName = dialog.findViewById<EditText>(R.id.etProfileName)
                   val etUrl = dialog.findViewById<EditText>(R.id.etProfileUrl)
                   val tvError = dialog.findViewById<TextView>(R.id.tvUrlError)
@@ -721,7 +854,14 @@ jobs:
                   val btnSaveAndOpen = dialog.findViewById<Button>(R.id.btnSaveAndOpen)
                   val btnCancel = dialog.findViewById<TextView>(R.id.btnCancelDialog)
 
-                  fun validateAndCreate(openImmediately: Boolean) {
+                  if (profileToEdit != null) {
+                      tvTitle.text = "Editar perfil"
+                      etName.setText(profileToEdit.name)
+                      etUrl.setText(profileToEdit.startUrl)
+                      btnSaveAndOpen.visibility = View.GONE
+                  }
+
+                  fun saveAction(openNow: Boolean) {
                       val name = etName.text.toString().trim().ifEmpty { "Perfil ${profiles.size + 1}" }
                       val rawUrl = etUrl.text.toString().trim()
 
@@ -731,35 +871,95 @@ jobs:
                       }
                       tvError.visibility = View.GONE
 
-                      val newId = "profile_${System.currentTimeMillis()}"
-                      val seed = (1000..99999).random()
-                      val gpuIndex = profiles.size % BrowserProfile.GPU_LIST.size
-                      val gpu = BrowserProfile.GPU_LIST[gpuIndex]
+                      if (profileToEdit != null) {
+                          profileToEdit.name = name
+                          profileToEdit.startUrl = rawUrl
+                          saveProfilesToPrefs()
+                          refreshProfilesUi()
+                          dialog.dismiss()
+                          Toast.makeText(this, "Perfil actualizado", Toast.LENGTH_SHORT).show()
+                      } else {
+                          val newId = "profile_${System.currentTimeMillis()}"
+                          val seed = (1000..99999).random()
+                          val gpuIndex = profiles.size % BrowserProfile.GPU_LIST.size
+                          val gpu = BrowserProfile.GPU_LIST[gpuIndex]
 
-                      val newProfile = BrowserProfile(
-                          id = newId,
-                          name = name,
-                          startUrl = rawUrl,
-                          seed = seed,
-                          gpuVendor = gpu.first,
-                          gpuRenderer = gpu.second
-                      )
+                          val newProfile = BrowserProfile(
+                              id = newId,
+                              name = name,
+                              startUrl = rawUrl,
+                              seed = seed,
+                              gpuVendor = gpu.first,
+                              gpuRenderer = gpu.second
+                          )
 
-                      profiles.add(newProfile)
-                      saveProfilesToPrefs()
-                      refreshProfilesUi()
-                      dialog.dismiss()
+                          profiles.add(newProfile)
+                          saveProfilesToPrefs()
+                          refreshProfilesUi()
+                          dialog.dismiss()
 
-                      if (openImmediately) {
-                          launchProfile(newProfile)
+                          if (openNow) {
+                              onProfileSelected(newProfile)
+                          }
                       }
                   }
 
-                  btnSave.setOnClickListener { validateAndCreate(false) }
-                  btnSaveAndOpen.setOnClickListener { validateAndCreate(true) }
+                  btnSave.setOnClickListener { saveAction(false) }
+                  btnSaveAndOpen.setOnClickListener { saveAction(true) }
                   btnCancel.setOnClickListener { dialog.dismiss() }
 
                   dialog.show()
+              }
+
+              private fun showProfileOptions(profile: BrowserProfile) {
+                  val options = arrayOf("Editar", "Eliminar")
+                  AlertDialog.Builder(this)
+                      .setTitle(profile.name)
+                      .setItems(options) { _, which ->
+                          when (which) {
+                              0 -> showNewProfileDialog(profile)
+                              1 -> {
+                                  if (activeProfile?.id == profile.id) {
+                                      activeProfile = null
+                                      showProfilesScreen()
+                                  }
+                                  profiles.remove(profile)
+                                  saveProfilesToPrefs()
+                                  refreshProfilesUi()
+                                  currentSheetDialog?.dismiss()
+                                  Toast.makeText(this, "Perfil eliminado", Toast.LENGTH_SHORT).show()
+                              }
+                          }
+                      }
+                      .show()
+              }
+
+              private fun onProfileSelected(targetProfile: BrowserProfile) {
+                  if (activeProfile?.id == targetProfile.id) {
+                      currentSheetDialog?.dismiss()
+                      profilesScreen.visibility = View.GONE
+                      browserScreen.visibility = View.VISIBLE
+                      activeWebView?.onResume()
+                      activeWebView?.resumeTimers()
+                      return
+                  }
+
+                  if (activeProfile != null) {
+                      AlertDialog.Builder(this)
+                          .setTitle("Cambiar de sesión")
+                          .setMessage("¿Deseas abrir '${targetProfile.name}' y pausar '${activeProfile?.name}'?")
+                          .setPositiveButton("Sí") { _, _ ->
+                              activeWebView?.onPause()
+                              activeWebView?.pauseTimers()
+                              currentSheetDialog?.dismiss()
+                              launchProfile(targetProfile)
+                          }
+                          .setNegativeButton("No", null)
+                          .show()
+                  } else {
+                      currentSheetDialog?.dismiss()
+                      launchProfile(targetProfile)
+                  }
               }
 
               private fun launchProfile(profile: BrowserProfile) {
@@ -832,7 +1032,37 @@ jobs:
                   refreshProfilesUi()
               }
 
-              private fun clearCurrentSessionAndExit() {
+              private fun showProfilesSheet() {
+                  val dialog = Dialog(this)
+                  dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+                  dialog.setContentView(R.layout.sheet_profiles)
+                  dialog.window?.let { w ->
+                      w.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                      w.setLayout(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          (resources.displayMetrics.heightPixels * 0.65).toInt()
+                      )
+                      w.setGravity(Gravity.BOTTOM)
+                  }
+
+                  val llSheet = dialog.findViewById<LinearLayout>(R.id.llSheetProfiles)
+                  val btnNew = dialog.findViewById<Button>(R.id.btnSheetNewProfile)
+                  btnNew.setOnClickListener {
+                      dialog.dismiss()
+                      showNewProfileDialog(null)
+                  }
+
+                  llSheet.removeAllViews()
+                  for (profile in profiles) {
+                      val card = createProfileCard(profile)
+                      llSheet.addView(card)
+                  }
+
+                  currentSheetDialog = dialog
+                  dialog.show()
+              }
+
+              private fun executeCleanReset() {
                   activeProfile?.let { profile ->
                       if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
                           val profileStore = ProfileStore.getInstance()
@@ -842,9 +1072,71 @@ jobs:
                       }
                       activeWebView?.clearCache(true)
                       activeWebView?.clearHistory()
-                      Toast.makeText(this, "Sesión borrada por completo", Toast.LENGTH_SHORT).show()
+
+                      profile.seed = (1000..99999).random()
+                      val newGpu = BrowserProfile.GPU_LIST.random()
+                      profile.gpuVendor = newGpu.first
+                      profile.gpuRenderer = newGpu.second
+
+                      saveProfilesToPrefs()
+                      tvActiveBadge.text = "● ${profile.name} [${profile.gpuRenderer}]"
+                      Toast.makeText(this, "Clean: Nueva huella #${profile.seed} y cookies borradas", Toast.LENGTH_SHORT).show()
+
+                      activeWebView?.loadUrl(profile.startUrl)
                   }
-                  showProfilesScreen()
+              }
+
+              private fun createProfileCard(profile: BrowserProfile): View {
+                  val card = LinearLayout(this)
+                  card.orientation = LinearLayout.HORIZONTAL
+                  card.setBackgroundResource(R.drawable.bg_card)
+                  val params = LinearLayout.LayoutParams(
+                      LinearLayout.LayoutParams.MATCH_PARENT,
+                      LinearLayout.LayoutParams.WRAP_CONTENT
+                  )
+                  params.setMargins(0, 0, 0, 16)
+                  card.layoutParams = params
+                  card.setPadding(28, 24, 16, 24)
+                  card.gravity = Gravity.CENTER_VERTICAL
+                  card.isClickable = true
+                  card.isFocusable = true
+                  card.setOnClickListener { onProfileSelected(profile) }
+
+                  val infoCol = LinearLayout(this)
+                  infoCol.orientation = LinearLayout.VERTICAL
+                  infoCol.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+                  val tvName = TextView(this)
+                  tvName.text = profile.name
+                  tvName.textSize = 16f
+                  tvName.setTextColor(Color.WHITE)
+                  tvName.setTypeface(null, Typeface.BOLD)
+                  infoCol.addView(tvName)
+
+                  val tvUrl = TextView(this)
+                  tvUrl.text = profile.startUrl
+                  tvUrl.textSize = 12f
+                  tvUrl.setTextColor(Color.parseColor("#8E8E93"))
+                  tvUrl.setPadding(0, 4, 0, 4)
+                  infoCol.addView(tvUrl)
+
+                  val tvHardware = TextView(this)
+                  tvHardware.text = "GPU: ${profile.gpuRenderer} | Seed: #${profile.seed}"
+                  tvHardware.textSize = 11f
+                  tvHardware.setTextColor(Color.parseColor("#34C759"))
+                  infoCol.addView(tvHardware)
+
+                  card.addView(infoCol)
+
+                  val btnDots = TextView(this)
+                  btnDots.text = "⋮"
+                  btnDots.textSize = 24f
+                  btnDots.setTextColor(Color.parseColor("#8E8E93"))
+                  btnDots.setPadding(24, 16, 24, 16)
+                  btnDots.setOnClickListener { showProfileOptions(profile) }
+                  card.addView(btnDots)
+
+                  return card
               }
 
               private fun refreshProfilesUi() {
@@ -858,65 +1150,7 @@ jobs:
                       scrollProfiles.visibility = View.VISIBLE
 
                       for (profile in profiles) {
-                          val card = LinearLayout(this)
-                          card.orientation = LinearLayout.VERTICAL
-                          card.setBackgroundResource(R.drawable.bg_card)
-                          val params = LinearLayout.LayoutParams(
-                              LinearLayout.LayoutParams.MATCH_PARENT,
-                              LinearLayout.LayoutParams.WRAP_CONTENT
-                          )
-                          params.setMargins(0, 0, 0, 16)
-                          card.layoutParams = params
-                          card.setPadding(24, 24, 24, 24)
-
-                          val tvName = TextView(this)
-                          tvName.text = profile.name
-                          tvName.textSize = 16f
-                          tvName.setTextColor(Color.WHITE)
-                          card.addView(tvName)
-
-                          val tvUrl = TextView(this)
-                          tvUrl.text = profile.startUrl
-                          tvUrl.textSize = 12f
-                          tvUrl.setTextColor(Color.parseColor("#8E8E93"))
-                          tvUrl.setPadding(0, 4, 0, 8)
-                          card.addView(tvUrl)
-
-                          val tvHardware = TextView(this)
-                          tvHardware.text = "GPU: ${profile.gpuRenderer} | Seed: #${profile.seed}"
-                          tvHardware.textSize = 11f
-                          tvHardware.setTextColor(Color.parseColor("#34C759"))
-                          card.addView(tvHardware)
-
-                          val buttonsRow = LinearLayout(this)
-                          buttonsRow.orientation = LinearLayout.HORIZONTAL
-                          buttonsRow.setPadding(0, 12, 0, 0)
-
-                          val btnOpen = Button(this)
-                          btnOpen.text = "Abrir"
-                          btnOpen.setBackgroundColor(Color.parseColor("#C5B3F9"))
-                          btnOpen.setTextColor(Color.BLACK)
-                          btnOpen.setOnClickListener { launchProfile(profile) }
-                          buttonsRow.addView(btnOpen)
-
-                          val btnDelete = Button(this)
-                          btnDelete.text = "Eliminar"
-                          btnDelete.setBackgroundColor(Color.parseColor("#FF453A"))
-                          btnDelete.setTextColor(Color.WHITE)
-                          val deleteParams = LinearLayout.LayoutParams(
-                              LinearLayout.LayoutParams.WRAP_CONTENT,
-                              LinearLayout.LayoutParams.WRAP_CONTENT
-                          )
-                          deleteParams.setMargins(16, 0, 0, 0)
-                          btnDelete.layoutParams = deleteParams
-                          btnDelete.setOnClickListener {
-                              profiles.remove(profile)
-                              saveProfilesToPrefs()
-                              refreshProfilesUi()
-                          }
-                          buttonsRow.addView(btnDelete)
-
-                          card.addView(buttonsRow)
+                          val card = createProfileCard(profile)
                           llProfilesContainer.addView(card)
                       }
                   }
@@ -963,14 +1197,14 @@ jobs:
               }
           }""")
           PYEOF
-          python3 generate_project.py
+          python3 generate_all.py
 
       - name: Commit project files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --staged --quiet || (git commit -m "Setup complete Android browser project [skip ci]" && git push) || true
+          git diff --staged --quiet || (git commit -m "Update v1.2 with custom LD_LEO icon, clean UI and smart switch [skip ci]" && git push) || true
 
       - name: Setup Gradle Wrapper
         run: |
@@ -983,16 +1217,16 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AisladoBrowser-APK
+          name: LD_LEO-v1.2-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Create Release
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: "Navegador Aislado v1.0.0"
-          body: "Versión 1.0 con aislamiento de sesiones, huella de hardware única por perfil, monitor de IP/VPN y regla de 1 perfil activo para ahorro de recursos."
+          tag_name: v1.2.0
+          name: "LD_LEO v1.2.0"
+          body: "Actualización 1.2: Icono oficial circular LD_LEO, tarjetas con apertura directa, menú 3 puntos, hoja flotante de perfiles, confirmación de pausa entre sesiones y reseteo Clean."
           files: app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
