@@ -1288,13 +1288,3 @@ jobs:
           files: app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-'''
-
-with open("workflow_v12_verified.yml", "w") as f:
-    f.write(workflow)
-
-data = yaml.safe_load(open("workflow_v12_verified.yml"))
-print("Final check passed: 100% valid YAML!")
-EOF
-python3 make_final_clean_workflow.py
-}}
